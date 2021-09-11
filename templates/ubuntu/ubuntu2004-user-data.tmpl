@@ -1,0 +1,140 @@
+#cloud-config
+autoinstall:
+  version: 1
+  early-commands:
+    - sudo systemctl stop ssh
+  locale: en_US
+  keyboard:
+    layout: en
+    variant: us
+  identity:
+    hostname: localhost
+    username: ansible
+    password: '$6$/wWricjxMcUz8uz/$zVkNeh3j.Z47t3o2kYNRayP1vueV7hmr/KXxaKsLezuFEcwNlY60Z56YNSzTgOLx6Ia.P9cxCzgNmToRojahZ1'
+  network:
+    network:
+      version: 2
+      ethernets:
+        ens192:
+          dhcp4: false
+          addresses:
+            - ${PACKER_VM_IP_PREFIX}
+          gateway4: ${PACKER_VM_GATEWAY}
+          nameservers:
+            addresses:
+              - ${PACKER_VM_DNS}
+  storage:
+    config:
+      - grub_device: true
+        id: sda
+        path: /dev/sda
+        ptable: gpt
+        type: disk
+        wipe: superblock-recursive
+      - device: sda
+        flag: bios_grub
+        id: grub-partition
+        number: 1
+        size: 1048576
+        type: partition
+      - device: sda
+        id: boot-partition
+        number: 2
+        size: 1073741824
+        type: partition
+      - fstype: xfs
+        id: format-boot
+        type: format
+        volume: boot-partition
+      - device: sda
+        id: root-partition
+        number: 3
+        size: -1
+        type: partition
+        wipe: superblock
+
+      # VG and LVM
+      - name: system
+        devices: [root-partition]
+        preserve: false
+        type: lvm_volgroup
+        id: system
+      - name: home
+        volgroup: system
+        size: 2G
+        preserve: false
+        type: lvm_partition
+        id: home
+      - name: log
+        volgroup: system
+        size: 10G
+        preserve: false
+        type: lvm_partition
+        id: log
+      - name: swap
+        volgroup: system
+        size: 2G
+        preserve: false
+        type: lvm_partition
+        id: swap
+      - name: root
+        volgroup: system
+        size: -1
+        preserve: false
+        type: lvm_partition
+        id: root
+      
+      # Format
+      - fstype: xfs
+        id: format-home
+        type: format
+        volume: home
+      - fstype: xfs
+        id: format-log
+        type: format
+        volume: log
+      - fstype: xfs
+        id: format-root
+        type: format
+        volume: root
+      - fstype: swap
+        id: format-swap
+        type: format
+        volume: swap
+      
+      # Mount
+      - device: format-home
+        path: /home
+        type: mount
+        id: mount-home
+      - device: format-log
+        path: /var/log
+        type: mount
+        id: mount-log
+      - device: format-root
+        path: /
+        type: mount
+        id: mount-root
+      - device: format-boot
+        path: /boot
+        type: mount
+        id: mount-boot
+
+  ssh:
+    install-server: true
+    authorized-keys:
+      - ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDEg2DKXRBRfeoHGYJF+xGniqLpzdkJMylfWySPYZV0W5cq8RRWX1R904m8XalmbIVry/0y/74MZV6Ssx+SjYHgO/j6NM6YjJo/ovgnfAvNG0uPXF8cZsCE4p+7zDc5rFEm1ANMvHXHGI57rZ2YrZl7sYRVFVZ/XvSIjzWS40QuxpHFaaoCiH2/B7a53CWUm27RXsgBK5AO4r8e/BgWWO1E0zaaB0Y2EofYlmdO612CP3MU7WH5vmNUo8DmtFpAofxMIwFSUFSn0yOk1KN9UO1wgJiRBSc8IVjJ8Tgly6SgpTVW3o4pt+FwoRI2XbT74qoMjbzwmcK45JC29B/tskdwvyS9CxX1mS30U2flPQVyb8ydb+qn0q75xr6wIC27cvrIbBTePdF+E0dWAVcWfOQhg7kjl7dxnPC6XMikb0PlO3gZk0E9ZAWkS4TdYCbmrqXsjO+guW2/yKeRAy/sSW4sSWWh5tgOcX9QTE172GlaLkzj3oMO1lY1ajmKhpnFPOU= ansible@localhost
+    allow-pw: true
+  packages:
+    - openssh-server
+    - open-vm-tools
+  user-data:
+    disable_root: false
+    package_update: true
+    package_upgrade: true
+    package_reboot_if_required: true
+  late-commands:
+    - echo 'ansible ALL=(ALL) NOPASSWD:ALL' > /target/etc/sudoers.d/ansible
+    - curtin in-target --target=/target -- chmod 440 /etc/sudoers.d/ansible
+    - curtin in-target --target=/target -- apt-get update
+    - curtin in-target --target=/target -- apt-get upgrade --yes
