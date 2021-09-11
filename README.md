@@ -51,7 +51,7 @@ export PKR_VAR_build_password="changeme"
 ### Download VMWare Packer repo with templates and build
 
 ```console
-git clone https://gitlab.alabs.space/devops/packer/vmware.git
+git clone https://gitlab.com/devops/packer/vmware.git
 cd vmware/
 ./build.sh 1 ### For Ubuntu 18.04
 or
